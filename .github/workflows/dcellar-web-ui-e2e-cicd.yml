@@ -1,0 +1,169 @@
+name: frontend-e2e-cicd-trigger-by-comment
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: 'app name in gitops, only used in branch name'
+        type: string
+        required: false
+        default: ''
+      env:
+        description: 'Specify the deployment environment'
+        type: string
+        default: 'qa'
+      code_owner:
+        description: 'code owner for open source repository'
+        type: string
+        required: false
+        default: '["devinxl", "aiden-cao"]'
+
+jobs:
+  CI-CD:
+    runs-on: [qa-cicd-runners-large]
+    steps:
+      - name: Get current date
+        id: start
+        run: |
+          echo "time={$(date +'%Y-%m-%dT%H:%M:%S')}" >> $GITHUB_OUTPUT
+      - name: Job Starts Running
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          comment-id: ${{ github.event.comment.id }}
+          body: |
+            ++++++${{ steps.start.outputs.time }}++++++
+            Action Runner: https://github.com/node-real/dcellar-fe/actions/runs/${{github.run_id}}
+          reactions: rocket
+      - name: Github API Request
+        id: request
+        uses: octokit/request-action@v2.0.0
+        with:
+          route: ${{ github.event.issue.pull_request.url }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get PR information
+        id: pr_data
+        run: |
+          echo "branch=${{ fromJson(steps.request.outputs.data).head.ref }}" >> $GITHUB_OUTPUT
+      - name: Checkout 🛎️
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ fromJson(steps.request.outputs.data).head.repo.full_name }}
+          ref: ${{ steps.pr_data.outputs.branch }}
+      - name: Get Commit SHA
+        id: commit_sha
+        run: |
+          echo "COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+      - name: Install Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.8.1
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - name: Cache Rush
+        uses: actions/cache@v3
+        with:
+          path: |
+            common/temp/install-run
+            common/temp/build-cache
+            ~/.rush
+          key: ${{ runner.os }}-${{ hashFiles('rush.json') }}
+      - name: Cache pnpm
+        uses: actions/cache@v3
+        with:
+          path: |
+            common/temp/pnpm-store
+          key: ${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+      - name: Rush.js Install
+        run: |
+          node common/scripts/install-run-rush.js install -t ${{ inputs.app_name }}
+      - name: Rush.js Build
+        run: |
+          COMMIT_SHA=${{ steps.commit_sha.outputs.COMMIT_SHA }} node common/scripts/install-run-rush.js build -t ${{ inputs.app_name }}
+      - name: Rush.js Deploy
+        run: |
+          node common/scripts/install-run-rush.js deploy -p ${{ inputs.app_name }}
+      - name: Build, tag, and push image to Amazon ECR
+        id: image
+        env:
+          REGION: ${{ secrets.REGION }}
+          QA_ECR_REGISTRY_ID: ${{ secrets.QA_ECR_REGISTRY_ID }}
+          APP_NAME: ${{ inputs.app_name}}
+        run: |
+          IMAGE_NAME="${QA_ECR_REGISTRY_ID}.dkr.ecr.${REGION}.amazonaws.com/${APP_NAME}:${{ steps.commit_sha.outputs.COMMIT_SHA }}"
+          aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${QA_ECR_REGISTRY_ID}.dkr.ecr.${REGION}.amazonaws.com
+          time DOCKER_BUILDKIT=1 docker build -f apps/${APP_NAME}/Dockerfile . -t ${IMAGE_NAME}
+          docker push ${IMAGE_NAME}
+          echo "image_id=$IMAGE_NAME" >> $GITHUB_OUTPUT
+      - name: Generate The PR S3 PATH
+        id: s3_path
+        run: |
+          S3_PATH=dc-${{ github.event.issue.number }}
+          echo "VALUE=${S3_PATH}" >> $GITHUB_OUTPUT
+      - name: Upload Static File To QA S3 Bucket
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          STATIC_BUCKET: ${{ secrets.E2E_S3_BUCKET }}
+        run: |
+          S3_PATH=${{ steps.s3_path.outputs.VALUE }}
+          aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "private, max-age=259200"
+          aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "private, max-age=259200"
+      - name: Create Project Labels
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["${{ inputs.app_name }}"]
+            })
+      - name: Checkout-e2e-deploy
+        uses: actions/checkout@v3
+        with:
+          repository: 'node-real/github-workflows'
+          ref: 'feat/opt-fe/devin'
+          token: ${{ secrets.GO_MODULES_TOKEN }}
+      - name: Deploy
+        id: e2e-deploy
+        run: |
+          IMAGE_ID=${{ steps.image.outputs.image_id }}
+          IMAGE_TAG=$(echo $IMAGE_ID | cut -d ':' -f 2)
+          RELEASE_NAME=${{ steps.s3_path.outputs.VALUE }}
+          CONFIG_PATH=.github/.e2e-deploy/${{ inputs.app_name }}-e2e-with-${{ inputs.env }}.yaml
+          helm -n e2e-test --kubeconfig /home/runner/qa-us-e2e-test-kubeconfig upgrade --install $RELEASE_NAME -f $CONFIG_PATH --set nodereal-app.image.tag=$IMAGE_TAG --set nodereal-app.ingress.hosts[0].host=$RELEASE_NAME.dcellar-web-ui.fe.nodereal.cc .github/.e2e-deploy/ --set nodereal-app.containers.env[0].value=/static/${{ inputs.app_name }}
+          echo "url=https://$RELEASE_NAME.dcellar-web-ui.fe.nodereal.cc" >> $GITHUB_OUTPUT
+      - name: Create Version Comment
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          comment-id: ${{ github.event.comment.id }}
+          body: |
+            ++++++
+            Congrats, e2e-deploy successfully!
+            Preview Url: ${{ steps.e2e-deploy.outputs.url }}
+            Build Id: ${{ steps.commit_sha.outputs.COMMIT_SHA }}
+          reactions: hooray, rocket
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  Job-Failure-Feedback:
+    runs-on: [qa-cicd-runners-large]
+    if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
+    needs: [CI-CD]
+    steps:
+      - name: Create Failure Feedback
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ++++++
+            Sorry, this runner occurs some unexpected errors, please see [the link](https://github.com/node-real/dcellar-fe/actions/runs/${{github.run_id}}) for more detail.
+          reactions: confused
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

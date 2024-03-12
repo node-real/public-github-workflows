@@ -1,0 +1,86 @@
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+nodereal-app:
+  podAnnotations:
+    team: "frontend"
+    biz: "shared"
+    appcom: "dcellar-web-ui"
+  serviceAccount:
+    create: false
+    name: ""
+  serviceMonitor:
+    enabled: false
+    monitorPath: /metrics
+  configMaps:
+    config.yaml:
+      data:
+        config.yaml: |-
+          [Service]
+          HTTPListenAddr = "0.0.0.0:8080"
+          Concurrency = 0 # no limit
+  configMapsMountPath: /app/conf/
+  containers:
+    env:
+      - name: NEXT_PUBLIC_STATIC_HOST
+        value: ''
+      - name: NEXT_PUBLIC_ENV
+        value: 'testnet'
+      - name: NEXT_PUBLIC_GOOGLE_ANALYTICS_ID
+        value: 'G-BLEFQHCRWZ'
+      - name: NEXT_PUBLIC_BSC_CHAIN_ID
+        value: '97'
+      - name: NEXT_PUBLIC_GREENFIELD_CHAIN_ID
+        value: '5600'
+      - name: NEXT_PUBLIC_BSC_RPC_URL
+        value: "https://data-seed-prebsc-1-s1.binance.org:8545"
+      - name: NEXT_PUBLIC_GREENFIELD_CHAIN_RPC_URL
+        value: "https://gnfd-testnet-fullnode-tendermint-us.bnbchain.org"
+      - name: NEXT_PUBLIC_GREENFIELD_CHAIN_EXPLORER_URL
+        value: "https://testnet.greenfieldscan.com"
+      - name: NEXT_PUBLIC_BSC_EXPLORER_URL
+        value: "https://testnet.bscscan.com"
+      - name: NEXT_PUBLIC_GREENFIELD_CHAIN_MAINNET_ID
+        value: '1017'
+      - name: NEXT_PUBLIC_GREENFIELD_CHAIN_MAINNET_RPC_URL
+        value: "https://greenfield-chain-us.bnbchain.org"
+      - name: NEXT_PRIVATE_BILLING_API_URL
+        value: "http://greenfield-testnet-billing-querier-nodereal-app.greenfield-testnet.svc.cluster.local:26750"
+      - name: NEXT_PRIVATE_EXPLORER_API_URL
+        value: "http://greenfield-devnet-explorer-querier-nodereal-app.greenfield-devnet.svc.cluster.local:26750"
+    logsMountPath: /opt/app/logs/
+  image:
+    pullPolicy: Always
+    repository: 346509735976.dkr.ecr.us-east-1.amazonaws.com/dcellar-web-ui
+    tag: a5fb16cf9a315b1442cadb0df9781fb421f625a7
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "8"
+      memory: 16Gi
+    requests:
+      cpu:   50m
+      memory: 200Mi
+  service:
+    ports:
+      - name: http
+        port: 3000
+        protocol: TCP
+        targetPort: 3000
+    type: ClusterIP
+  ingress:
+    enabled: true
+    servicePort: 3000
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      external-dns.alpha.kubernetes.io/ingress-hostname-source: annotation-only
+      # For block access to /api
+      # nginx.ingress.kubernetes.io/server-snippet: |
+      #   if ($request_uri ~* (/api)) {
+      #     return 403;
+      #   }
+      # For rate limiting
+      # nginx.ingress.kubernetes.io/limit-rps: "10"
+    hosts:
+      - host: demo-preview.bk.nodereal.cc
+        paths:
+          - /

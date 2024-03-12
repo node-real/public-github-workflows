@@ -1,0 +1,7 @@
+apiVersion: v2
+name: go-clean-arch
+version: 0.0.2
+dependencies:
+  - name: nodereal-app
+    version: 1.0.13
+    repository: https://raw.githubusercontent.com/node-real/helm-repository/gh-pages/

@@ -1,0 +1,24 @@
+name: e2e-housekeeping
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        type: string
+        required: true
+jobs:
+  remove-e2e-test-deployment:
+    runs-on: [qa-cicd-runners]
+    steps:
+    - name: Install Helm
+      uses: azure/setup-helm@v1
+      with:
+        version: v3.8.1
+    - name: Delete pod
+      run: |
+        RELEASE_NAME=dc-${{ github.event.issue.number }}
+        helm -n e2e-test --kubeconfig /home/runner/qa-us-e2e-test-kubeconfig delete $RELEASE_NAME || true
+    - name: Delete s3 folder
+      run: |
+        RELEASE_NAME=dc-${{ github.event.issue.number }}
+        aws s3 rm s3://${{ secrets.E2E_S3_BUCKET }}/static/$RELEASE_NAME --recursive

@@ -1,0 +1,6 @@
+dependencies:
+- name: nodereal-app
+  repository: https://raw.githubusercontent.com/node-real/helm-repository/gh-pages/
+  version: 1.0.2
+digest: sha256:251d484629c882536b3b7aa26093e48d4eadbdb49e82e9d3d8551caab4cb7eae
+generated: "2022-07-26T18:33:53.795307+08:00"
