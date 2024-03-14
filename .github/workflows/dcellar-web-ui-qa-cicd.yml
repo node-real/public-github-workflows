@@ -142,12 +142,6 @@ jobs:
           echo 'DIFF<<EOF' >> $GITHUB_ENV
           echo "${DIFF}" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - name: Checkout Github workflows 🛎️
-        uses: actions/checkout@v3
-        with:
-          repository: 'node-real/github-workflows'
-          ref: 'feat/opt-fe/devin'
-          token: ${{ secrets.GO_MODULES_TOKEN }}
       - name: Prune Commit Msg
         id: prune_commit_msg
         uses: actions/github-script@v6
