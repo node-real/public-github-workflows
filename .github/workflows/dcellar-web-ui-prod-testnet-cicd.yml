@@ -5,27 +5,28 @@ on:
     inputs:
       app_name:
         description: "App name in gitops"
+        required: true
         type: string
-        required: false
         default: ""
       env:
         description: "Specify the deployment environment"
+        required: true
         type: string
         default: "testnet"
       ref:
         description: "Specify the branch, tag or SHA to deploy"
-        required: false
+        required: true
         default: "main"
         type: string
       tag_field:
         description: "Nodereal-app tag field"
-        type: string
         required: false
+        type: string
         default: ".nodereal-app.image.tag"
       git_sync_path:
         description: "Git sync path"
-        type: string
         required: false
+        type: string
         default: "prod/gitops/tf-nodereal-prod-noderealus/web-ui/dcellar-web-ui/values.yaml"
 
 jobs:
@@ -33,7 +34,7 @@ jobs:
     runs-on: [prod-cicd-runners]
     steps:
       - name: Checkout 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{inputs.ref}}
           fetch-depth: 0
@@ -88,7 +89,7 @@ jobs:
           aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000"
           aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000"
       - name: clone the gitops config repo to get diff commit 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}
@@ -126,7 +127,7 @@ jobs:
             const script = require("${{ github.workspace }}/.github/utils/parse-diff-commits.js");
             await script({diff_commits, core});
       - name: Checkout 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{inputs.ref}}
           fetch-depth: 0
@@ -147,7 +148,7 @@ jobs:
     needs: [CI]
     steps:
       - name: clone the gitops config repo 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}

@@ -1,32 +1,32 @@
 name: frontend-cicd-prod-mainnet-trigger-by-workflow_call
 
-# should use in pull request trigger
 on:
   workflow_call:
     inputs:
-      branch_name:
-        description: "Choose which branch for deployment"
-        type: string
-        required: false
-        default: mainnet-main
       app_name:
         description: "app name in gitops, only used in branch name"
+        required: true
         type: string
-        required: false
         default: ""
+      ref:
+        description: "Specify the branch, tag or SHA to deploy"
+        required: true
+        default: "main"
+        type: string
       env:
         description: "Specify the deployment environment"
+        required: true
         type: string
         default: "mainnet"
       tag_field:
         description: "deploy tag field"
-        type: string
         required: false
+        type: string
         default: ".nodereal-app.image.tag"
       git_sync_path:
         description: "git sync path"
-        type: string
         required: false
+        type: string
         default: "prod/gitops/tf-nodereal-prod-noderealus/web-ui/dcellar-web-ui-mainnet/values.yaml"
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
     runs-on: [prod-cicd-runners]
     steps:
       - name: Checkout 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{inputs.branch_name}}
           fetch-depth: 0
@@ -93,7 +93,7 @@ jobs:
           aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000"
           aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000"
       - name: clone the gitops config repo to get diff commit 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}
@@ -131,7 +131,7 @@ jobs:
             const script = require("${{ github.workspace }}/.github/utils/parse-diff-commits.js");
             await script({diff_commits, core});
       - name: Checkout 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{inputs.branch_name}}
           fetch-depth: 0
@@ -152,7 +152,7 @@ jobs:
     needs: [CI]
     steps:
       - name: clone the gitops config repo 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}
