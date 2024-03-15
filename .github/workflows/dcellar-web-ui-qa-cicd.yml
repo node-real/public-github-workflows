@@ -58,7 +58,7 @@ jobs:
         run: |
           echo "branch=${{ fromJson(steps.request.outputs.data).head.ref }}" >> $GITHUB_OUTPUT
       - name: Checkout 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ fromJson(steps.request.outputs.data).head.repo.full_name }}
@@ -115,7 +115,7 @@ jobs:
           aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000" --metadata '{"Cache-Control":"max-age=31536000"}'
           aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000" --metadata '{"Cache-Control":"max-age=31536000"}'
       - name: Clone The Gitops Config Repo To Get Diff Commit 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}
@@ -151,7 +151,7 @@ jobs:
             const script = require("${{ github.workspace }}/.github/utils/parse-diff-commits.js");
             await script({diff_commits, core});
       - name: Checkout 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ fromJson(steps.request.outputs.data).head.repo.full_name }}
@@ -183,7 +183,7 @@ jobs:
     needs: [CI]
     steps:
       - name: Clone The Gitops Config Repo 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}
