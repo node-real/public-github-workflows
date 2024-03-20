@@ -145,6 +145,7 @@ jobs:
       - name: Prune Commit Msg
         id: prune_commit_msg
         uses: actions/github-script@v6
+        continue-on-error: true
         with:
           script: |
             const diff_commits = `${{env.DIFF}}`
