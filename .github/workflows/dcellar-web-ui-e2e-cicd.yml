@@ -1,10 +1,10 @@
-name: frontend-e2e-cicd-trigger-by-comment
+name: Frontend End-to-End CI/CD For QA
 
 on:
   workflow_call:
     inputs:
       app_name:
-        description: 'app name in gitops, only used in branch name'
+        description: 'App name in gitops'
         type: string
         required: false
         default: ''
@@ -26,7 +26,7 @@ jobs:
         id: start
         run: |
           echo "time={$(date +'%Y-%m-%dT%H:%M:%S')}" >> $GITHUB_OUTPUT
-      - name: Job Starts Running
+      - name: Start Job and Comment Trigger
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ github.event.issue.number }}
@@ -60,11 +60,11 @@ jobs:
         uses: azure/setup-helm@v1
         with:
           version: v3.8.1
-      - name: Install Node.js
+      - name: Setup Node.js Environment
         uses: actions/setup-node@v3
         with:
           node-version: 20
-      - name: Cache Rush
+      - name: Cache Rush Dependencies
         uses: actions/cache@v3
         with:
           path: |
@@ -72,22 +72,22 @@ jobs:
             common/temp/build-cache
             ~/.rush
           key: ${{ runner.os }}-${{ hashFiles('rush.json') }}
-      - name: Cache pnpm
+      - name: Cache PNPM Dependencies
         uses: actions/cache@v3
         with:
           path: |
             common/temp/pnpm-store
           key: ${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-      - name: Rush.js Install
+      - name: Install Rush Dependencies
         run: |
           node common/scripts/install-run-rush.js install -t ${{ inputs.app_name }}
-      - name: Rush.js Build
+      - name: Build Rush Project
         run: |
           COMMIT_SHA=${{ steps.commit_sha.outputs.COMMIT_SHA }} node common/scripts/install-run-rush.js build -t ${{ inputs.app_name }}
-      - name: Rush.js Deploy
+      - name: Deploy Rush Project
         run: |
           node common/scripts/install-run-rush.js deploy -p ${{ inputs.app_name }}
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build and Push Docker Image to ECR
         id: image
         env:
           REGION: ${{ secrets.REGION }}
@@ -104,7 +104,7 @@ jobs:
         run: |
           S3_PATH=dc-${{ github.event.issue.number }}
           echo "VALUE=${S3_PATH}" >> $GITHUB_OUTPUT
-      - name: Upload Static File To QA S3 Bucket
+      - name: Upload Static Files to QA S3 Bucket
         env:
           APP_NAME: ${{ inputs.app_name }}
           STATIC_BUCKET: ${{ secrets.E2E_S3_BUCKET }}
@@ -112,7 +112,7 @@ jobs:
           S3_PATH=${{ steps.s3_path.outputs.VALUE }}
           aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "private, max-age=259200"
           aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "private, max-age=259200"
-      - name: Create Project Labels
+      - name: Add Project Labels
         uses: actions/github-script@v6
         with:
           script: |
@@ -122,10 +122,10 @@ jobs:
               repo: context.repo.repo,
               labels: ["${{ inputs.app_name }}"]
             })
-      - name: Checkout-e2e-deploy
+      - name: Checkout Public Github workflows 🛎️
         uses: actions/checkout@v4
         with:
-          repository: 'node-real/public-github-workflow'
+          repository: 'node-real/public-github-workflows'
           token: ${{ secrets.GO_MODULES_TOKEN }}
       - name: Deploy
         id: e2e-deploy
@@ -155,7 +155,7 @@ jobs:
     if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
     needs: [CI-CD]
     steps:
-      - name: Create Failure Feedback
+      - name: Create Job Failure Feedback
         uses: peter-evans/create-or-update-comment@v2
         with:
           comment-id: ${{ github.event.comment.id }}

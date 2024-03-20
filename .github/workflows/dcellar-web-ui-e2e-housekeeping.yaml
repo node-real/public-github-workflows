@@ -1,4 +1,4 @@
-name: e2e-housekeeping
+name: Cleanup E2E Test
 
 on:
   workflow_call:
@@ -14,11 +14,14 @@ jobs:
       uses: azure/setup-helm@v1
       with:
         version: v3.8.1
-    - name: Delete pod
+    - name: Get PR Number
+      id: pr_number
+      run: echo "::set-output name=pr_number::${{ github.event.number }}"
+    - name: Delete Kubernetes Deployment
       run: |
-        RELEASE_NAME=dc-${{ github.event.issue.number }}
+        RELEASE_NAME=dc-${{ steps.pr_number.outputs.pr_number }}
         helm -n e2e-test --kubeconfig /home/runner/qa-us-e2e-test-kubeconfig delete $RELEASE_NAME || true
-    - name: Delete s3 folder
+    - name: Delete S3 Folder
       run: |
-        RELEASE_NAME=dc-${{ github.event.issue.number }}
+        RELEASE_NAME=dc-${{ steps.pr_number.outputs.pr_number }}
         aws s3 rm s3://${{ secrets.E2E_S3_BUCKET }}/static/$RELEASE_NAME --recursive

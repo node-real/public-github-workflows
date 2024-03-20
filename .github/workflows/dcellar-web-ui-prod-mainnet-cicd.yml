@@ -1,10 +1,10 @@
-name: frontend-cicd-prod-mainnet-trigger-by-workflow_call
+name: Frontend CI/CD for Mainnet Environment
 
 on:
   workflow_call:
     inputs:
       app_name:
-        description: "app name in gitops, only used in branch name"
+        description: "App name in gitops"
         required: true
         type: string
         default: ""
@@ -19,12 +19,12 @@ on:
         type: string
         default: "mainnet"
       tag_field:
-        description: "deploy tag field"
+        description: "Deployment tag field"
         required: false
         type: string
         default: ".nodereal-app.image.tag"
       git_sync_path:
-        description: "git sync path"
+        description: "Path for Git synchronization"
         required: false
         type: string
         default: "prod/gitops/tf-nodereal-prod-noderealus/web-ui/dcellar-web-ui-mainnet/values.yaml"
@@ -38,15 +38,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-      - name: get commit sha
+      - name: Get Commit SHA
         id: commit_sha
         run: |
           echo "COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-      - name: Install Node.js
+      - name: Setup Node.js Environment
         uses: actions/setup-node@v3
         with:
           node-version: 20
-      - name: Cache Rush
+      - name: Cache Rush Dependencies
         uses: actions/cache@v3
         with:
           path: |
@@ -54,22 +54,22 @@ jobs:
             common/temp/build-cache
             ~/.rush
           key: ${{ runner.os }}-${{ hashFiles('rush.json') }}
-      - name: Cache pnpm
+      - name: Cache PNPM Dependencies
         uses: actions/cache@v3
         with:
           path: |
             common/temp/pnpm-store
           key: ${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-      - name: rush.js Install
+      - name: Install Rush Dependencies
         run: |
           node common/scripts/install-run-rush.js install -t ${{ inputs.app_name }}
-      - name: rush.js build
+      - name: Build Rush Project
         run: |
           COMMIT_SHA=${{ steps.commit_sha.outputs.COMMIT_SHA }} node common/scripts/install-run-rush.js build -t ${{ inputs.app_name }}
-      - name: Rush.js deploy
+      - name: Deploy Rush Project
         run: |
           node common/scripts/install-run-rush.js deploy -p ${{ inputs.app_name }}
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build and Push Docker Image to ECR
         id: image
         env:
           REGION: ${{ secrets.REGION }}
@@ -85,30 +85,34 @@ jobs:
           docker push ${IMAGE_NAME}
 
           echo "image_id=$IMAGE_NAME" >> $GITHUB_OUTPUT
-      - name: upload static file to prod s3 bucket
+      - name: Upload Static Files to Prod S3 Bucket
         env:
           APP_NAME: ${{ inputs.app_name }}
           STATIC_BUCKET: ${{ secrets.PROD_MAINNET_S3_BUCKET }}
         run: |
           aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000"
           aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000"
-      - name: clone the gitops config repo to get diff commit 🛎️
+      - name: Checkout GitOps Config Repository to get diff commit 🛎️
         uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}
           path: nodereal-app
-      - name: Get the online version commit id
+      - name: Retrieve Online Version Commit ID
         id: get_online_commit_id
         run: |
           COMMIT_ID=$(yq eval "${{ inputs.tag_field }}" "nodereal-app/${{ inputs.git_sync_path }}")
           echo "commit_id=${COMMIT_ID}" >> $GITHUB_OUTPUT
-      - name: get release diff commits
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Retrieve Release Diff Commits
         id: get_diff_commits
-        # TEMP IGNORE FOR TESTING
         continue-on-error: true
         run: |
-          CURRENT_HASH=$(git rev-parse HEAD)
+          CURRENT_HASH=${{ steps.commit_sha.outputs.COMMIT_SHA }}
           LAST_BUILD_HASH=${{steps.get_online_commit_id.outputs.commit_id}}
           DIFF=""
           if [ -z "$LAST_BUILD_HASH" ]
@@ -121,7 +125,12 @@ jobs:
           echo 'DIFF<<EOF' >> $GITHUB_ENV
           echo "${DIFF}" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - name: Prune commit msg
+      - name: Checkout Public Github workflows 🛎️
+        uses: actions/checkout@v4
+        with:
+          repository: 'node-real/public-github-workflows'
+          token: ${{ secrets.GO_MODULES_TOKEN }}
+      - name: Prune Commit Messages
         id: prune_commit_msg
         continue-on-error: true
         uses: actions/github-script@v6
@@ -151,7 +160,7 @@ jobs:
     runs-on: [prod-cicd-runners]
     needs: [CI]
     steps:
-      - name: clone the gitops config repo 🛎️
+      - name: Checkout GitOps Config Repository 🛎️
         uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
@@ -161,14 +170,14 @@ jobs:
         with:
           name: "${{ github.event.issue.number }}_prod_mainnet_artifacts"
           path: ./artifacts
-      - name: Output Commits Changes
+      - name: Output Commit Changes
         id: output_commits_changes
         run: |
           DIFF=$(cat artifacts/prod_mainnet_commit_changes)
           echo 'DIFF<<EOF' >> $GITHUB_ENV
           echo "${DIFF}" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - name: Output Commit Sha
+      - name: Output Commit SHA
         id: output_commit_sha
         run: |
           COMMIT_SHA=$(cat artifacts/prod_mainnet_commit_sha)
@@ -177,20 +186,20 @@ jobs:
         uses: geekyeggo/delete-artifact@v2
         with:
           name: "${{ github.event.issue.number }}_prod_mainnet_artifacts"
-      - name: Clear Local Artifacts files
+      - name: Clean Local Artifacts
         run: |
           rm -rf artifacts
       - name: update image tag in gitops config repo
         run: |
           yq e "${{ inputs.tag_field }} = \"${{ steps.output_commit_sha.outputs.commit_sha }}\"" -i "${{ inputs.git_sync_path}}"
-      - name: Set PR branch name
+      - name: Set Pull Request Branch Name
         id: vars
         run: echo "branch-name=github-action-patches/${{ inputs.app_name }}-${{ inputs.env }}/${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
       - name: Echo build id
         id: echo_build
         run: |
           echo "build_id=${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
-      - name: Create Pull Request
+      - name: Create Pull Request for Image Update
         uses: peter-evans/create-pull-request@v4
         with:
           token: ${{ secrets.GO_MODULES_TOKEN }}
