@@ -1,11 +1,10 @@
-name: frontend-cicd-qa-trigger-by-comment
+name: Frontend CI/CD for QA Environment
 
-# should use in pull request trigger
 on:
   workflow_call:
     inputs:
       app_name:
-        description: 'app name in gitops, only used in branch name'
+        description: 'App name in gitops'
         type: string
         required: false
         default: ''
@@ -14,17 +13,17 @@ on:
         type: string
         default: 'qa'
       tag_field:
-        description: 'deploy tag field'
+        description: 'Deployment tag field'
         type: string
         required: false
         default: '.nodereal-app.image.tag'
       git_sync_path:
-        description: 'git sync path'
+        description: 'Path for Git synchronization'
         type: string
         required: false
         default: 'qa/gitops/qa-us/web-ui/dcellar-web-ui/values.yaml'
       preview_url:
-        description: 'qa preview url'
+        description: 'URL for QA preview'
         type: string
         required: false
         default: 'https://dcellar-qa.fe.nodereal.cc'
@@ -37,7 +36,7 @@ jobs:
         id: start
         run: |
           echo "time={$(date +'%Y-%m-%dT%H:%M:%S')}" >> $GITHUB_OUTPUT
-      - name: Job Starts Running
+      - name: Start Job and Comment Trigger
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ github.event.issue.number }}
@@ -53,26 +52,26 @@ jobs:
           route: ${{ github.event.issue.pull_request.url }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Get PR Information
+      - name: Retrieve Pull Request Information
         id: pr_data
         run: |
-          echo "branch=${{ fromJson(steps.request.outputs.data).head.ref }}" >> $GITHUB_OUTPUT
+          echo "ref=${{ fromJson(steps.request.outputs.data).head.ref }}" >> $GITHUB_OUTPUT
       - name: Checkout 🛎️
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ fromJson(steps.request.outputs.data).head.repo.full_name }}
-          ref: ${{ steps.pr_data.outputs.branch }}
+          ref: ${{ steps.pr_data.outputs.ref }}
           fetch-depth: 0
       - name: Get Commit SHA
         id: commit_sha
         run: |
           echo "COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-      - name: Install Node.js
+      - name: Setup Node.js Environment
         uses: actions/setup-node@v3
         with:
           node-version: 20
-      - name: Cache Rush
+      - name: Cache Rush Dependencies
         uses: actions/cache@v3
         with:
           path: |
@@ -80,22 +79,22 @@ jobs:
             common/temp/build-cache
             ~/.rush
           key: ${{ runner.os }}-${{ hashFiles('rush.json') }}
-      - name: Cache pnpm
+      - name: Cache PNPM Dependencies
         uses: actions/cache@v3
         with:
           path: |
             common/temp/pnpm-store
           key: ${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-      - name: Rush.js Install
+      - name: Install Rush Dependencies
         run: |
           node common/scripts/install-run-rush.js install -t ${{ inputs.app_name}}
-      - name: Rush.js Build
+      - name: Build Rush Project
         run: |
           COMMIT_SHA=${{ steps.commit_sha.outputs.COMMIT_SHA }} node common/scripts/install-run-rush.js build -t ${{ inputs.app_name}}
-      - name: Rush.js Deploy
+      - name: Deploy Rush Project
         run: |
           node common/scripts/install-run-rush.js deploy -p ${{ inputs.app_name}}
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build and Push Docker Image to ECR
         id: image
         env:
           REGION: ${{ secrets.REGION }}
@@ -107,29 +106,36 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f apps/${APP_NAME}/Dockerfile . -t ${IMAGE_NAME}
           docker push ${IMAGE_NAME}
           echo "image_id=$IMAGE_NAME" >> $GITHUB_OUTPUT
-      - name: Upload Static File To QA S3 Bucket
+      - name: Upload Static Files to QA S3 Bucket
         env:
           APP_NAME: ${{ inputs.app_name }}
           STATIC_BUCKET: ${{ secrets.QA_S3_BUCKET }}
         run: |
           aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000" --metadata '{"Cache-Control":"max-age=31536000"}'
           aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000" --metadata '{"Cache-Control":"max-age=31536000"}'
-      - name: Clone The Gitops Config Repo To Get Diff Commit 🛎️
+      - name: Checkout GitOps Repository for Diff Commits 🛎️
         uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}
           path: nodereal-app
-      - name: Get The Online Version Commit Id
+      - name: Retrieve Online Version Commit ID
         id: get_online_commit_id
         run: |
           COMMIT_ID=$(yq eval "${{ inputs.tag_field }}" "nodereal-app/${{ inputs.git_sync_path }}")
           echo "commit_id=${COMMIT_ID}" >> $GITHUB_OUTPUT
-      - name: Get Release Diff Commits
+      - name: Checkout  🛎️
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ fromJson(steps.request.outputs.data).head.repo.full_name }}
+          ref: ${{ steps.pr_data.outputs.ref }}
+          fetch-depth: 0
+      - name: Retrieve Release Diff Commits
         id: get_diff_commits
         continue-on-error: true
         run: |
-          CURRENT_HASH=$(git rev-parse HEAD)
+          CURRENT_HASH=${{steps.commit_sha.outputs.COMMIT_SHA}}
           LAST_BUILD_HASH=${{steps.get_online_commit_id.outputs.commit_id}}
           DIFF=""
           if [ -z "$LAST_BUILD_HASH" ]
@@ -142,7 +148,12 @@ jobs:
           echo 'DIFF<<EOF' >> $GITHUB_ENV
           echo "${DIFF}" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - name: Prune Commit Msg
+      - name: Checkout Public Github workflows 🛎️
+        uses: actions/checkout@v4
+        with:
+          repository: 'node-real/public-github-workflows'
+          token: ${{ secrets.GO_MODULES_TOKEN }}
+      - name: Prune Commit Messages
         id: prune_commit_msg
         uses: actions/github-script@v6
         continue-on-error: true
@@ -151,13 +162,6 @@ jobs:
             const diff_commits = `${{env.DIFF}}`
             const script = require("${{ github.workspace }}/.github/utils/parse-diff-commits.js");
             await script({diff_commits, core});
-      - name: Checkout 🛎️
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ fromJson(steps.request.outputs.data).head.repo.full_name }}
-          ref: ${{ steps.pr_data.outputs.branch }}
-          fetch-depth: 0
       - name: Generate Artifacts
         run: |
           mkdir temp
@@ -169,7 +173,7 @@ jobs:
           name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
           path: temp
           if-no-files-found: error
-      - name: Create Project Labels
+      - name: Add Project Labels
         uses: actions/github-script@v6
         with:
           script: |
@@ -183,7 +187,7 @@ jobs:
     runs-on: [qa-cicd-runners-large]
     needs: [CI]
     steps:
-      - name: Clone The Gitops Config Repo 🛎️
+      - name: Checkout GitOps Config Repository 🛎️
         uses: actions/checkout@v4
         with:
           repository: node-real/nodereal-app
@@ -193,14 +197,14 @@ jobs:
         with:
           name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
           path: ./artifacts
-      - name: Output Commits Changes
+      - name: Output Commit Changes
         id: output_commits_changes
         run: |
           DIFF=$(cat artifacts/commit_changes)
           echo 'DIFF<<EOF' >> $GITHUB_ENV
           echo "${DIFF}" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - name: Output Commit Sha
+      - name: Output Commit SHA
         id: output_commit_sha
         run: |
           COMMIT_SHA=$(cat artifacts/commit_sha)
@@ -209,17 +213,17 @@ jobs:
         uses: geekyeggo/delete-artifact@v2
         with:
           name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
-      - name: Clear Local Artifacts files
+      - name: Clean Local Artifacts
         run: |
           rm -rf artifacts
-      - name: Update Image Tag In Gitops Config Repo
+      - name: Update Image Tag in GitOps Config
         run: |
           yq e "${{ inputs.tag_field }} = \"${{ steps.output_commit_sha.outputs.commit_sha }}\"" -i "${{ inputs.git_sync_path }}"
-      - name: Set PR Branch Name
+      - name: Set Pull Request Branch Name
         id: vars
         run: |
           echo "branch-name=github-action-patches/${{ inputs.app_name}}/${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
-      - name: Create Pull Request
+      - name: Create Pull Request for Image Update
         uses: peter-evans/create-pull-request@v4
         with:
           token: ${{ secrets.GO_MODULES_TOKEN }}
@@ -249,7 +253,7 @@ jobs:
     if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
     needs: [CI, CD]
     steps:
-      - name: Create Failure Feedback
+      - name: Create Job Failure Feedback
         uses: peter-evans/create-or-update-comment@v2
         with:
           comment-id: ${{ github.event.comment.id }}
