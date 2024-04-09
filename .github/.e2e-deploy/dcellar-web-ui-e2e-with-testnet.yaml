@@ -47,6 +47,8 @@ nodereal-app:
         value: "http://greenfield-testnet-billing-querier-nodereal-app.greenfield-testnet.svc.cluster.local:26750"
       - name: NEXT_PRIVATE_EXPLORER_API_URL
         value: "http://greenfield-devnet-explorer-querier-nodereal-app.greenfield-devnet.svc.cluster.local:26750"
+      - name: NEXT_PRIVATE_ALLOWED_DOMAINS
+        value: "dcellar.io,localhost,nodereal.cc"
     logsMountPath: /opt/app/logs/
   image:
     pullPolicy: Always
