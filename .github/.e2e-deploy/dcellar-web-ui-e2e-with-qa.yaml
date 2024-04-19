@@ -45,8 +45,6 @@ nodereal-app:
         value: "http://greenfield-devnet-explorer-querier-nodereal-app.greenfield-devnet.svc.cluster.local:26750"
       - name: NEXT_PUBLIC_GREENFIELD_CHAIN_MAINNET_RPC_URL
         value: "https://greenfield-chain-us.bnbchain.org"
-      - name: NEXT_PRIVATE_ALLOWED_DOMAINS
-        value: "dcellar.io,localhost,nodereal.cc"
 
     logsMountPath: /opt/app/logs/
   image:
