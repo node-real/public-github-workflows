@@ -40,11 +40,9 @@ nodereal-app:
       - name: NEXT_PUBLIC_BSC_EXPLORER_URL
         value: "https://bscscan.com"
       - name: NEXT_PRIVATE_BILLING_API_URL
-        value: "http://billing-querier-nodereal-app.greenfield-devnet.svc.cluster.local:26750"
+        value: "https://open-platform.nodereal.io/bb60a1b9c6dd4e58bc338803afbc69c3/greenfieldbilling-mainnet/"
       - name: NEXT_PRIVATE_EXPLORER_API_URL
-        value: "http://explorer-querier-nodereal-app.greenfield-mainnet:26750"
-      - name: NEXT_PRIVATE_ALLOWED_DOMAINS
-        value: "dcellar.io,localhost,nodereal.cc"
+        value: "https://open-platform.nodereal.io/bb60a1b9c6dd4e58bc338803afbc69c3/greenfieldscan-mainnet/"
     logsMountPath: /opt/app/logs/
   image:
     pullPolicy: Always
