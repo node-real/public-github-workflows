@@ -40,9 +40,9 @@ nodereal-app:
       - name: NEXT_PUBLIC_BSC_EXPLORER_URL
         value: 'https://testnet.bscscan.com'
       - name: NEXT_PRIVATE_BILLING_API_URL
-        value: "http://billing-querier-nodereal-app.greenfield-devnet.svc.cluster.local:26750"
+        value: "https://greenfield-billing-querier.nodereal.link"
       - name: NEXT_PRIVATE_EXPLORER_API_URL
-        value: "http://greenfield-devnet-explorer-querier-nodereal-app.greenfield-devnet.svc.cluster.local:26750"
+        value: "https://greenfield-explorer-querier.bk.nodereal.cc"
       - name: NEXT_PUBLIC_GREENFIELD_CHAIN_MAINNET_RPC_URL
         value: "https://greenfield-chain-us.bnbchain.org"
 
