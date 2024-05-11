@@ -193,7 +193,7 @@ jobs:
           repository: node-real/nodereal-app
           token: ${{ secrets.GO_MODULES_TOKEN }}
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
           path: ./artifacts
@@ -210,7 +210,7 @@ jobs:
           COMMIT_SHA=$(cat artifacts/commit_sha)
           echo "commit_sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
       - name: Clear Artifacts
-        uses: geekyeggo/delete-artifact@v2
+        uses: geekyeggo/delete-artifact@v5
         with:
           name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
       - name: Clean Local Artifacts
