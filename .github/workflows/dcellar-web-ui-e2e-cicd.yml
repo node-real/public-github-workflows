@@ -27,7 +27,7 @@ jobs:
         run: |
           echo "time={$(date +'%Y-%m-%dT%H:%M:%S')}" >> $GITHUB_OUTPUT
       - name: Start Job and Comment Trigger
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
           comment-id: ${{ github.event.comment.id }}
@@ -37,7 +37,7 @@ jobs:
           reactions: rocket
       - name: Github API Request
         id: request
-        uses: octokit/request-action@v2.0.0
+        uses: octokit/request-action@v2.x
         with:
           route: ${{ github.event.issue.pull_request.url }}
         env:
@@ -57,15 +57,15 @@ jobs:
         run: |
           echo "COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
       - name: Install Helm
-        uses: azure/setup-helm@v1
+        uses: azure/setup-helm@v4.2.0
         with:
           version: v3.8.1
       - name: Setup Node.js Environment
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Cache Rush Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             common/temp/install-run
@@ -73,7 +73,7 @@ jobs:
             ~/.rush
           key: ${{ runner.os }}-${{ hashFiles('rush.json') }}
       - name: Cache PNPM Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             common/temp/pnpm-store
@@ -113,7 +113,7 @@ jobs:
           aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "private, max-age=259200"
           aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "private, max-age=259200"
       - name: Add Project Labels
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.addLabels({
@@ -137,7 +137,7 @@ jobs:
           helm -n e2e-test --kubeconfig /home/runner/qa-us-e2e-test-kubeconfig upgrade --install $RELEASE_NAME -f $CONFIG_PATH --set nodereal-app.image.tag=$IMAGE_TAG --set nodereal-app.ingress.hosts[0].host=$RELEASE_NAME.dcellar-web-ui.fe.nodereal.cc .github/.e2e-deploy/ --set nodereal-app.containers.env[0].value=/static/${{ inputs.app_name }}
           echo "url=https://$RELEASE_NAME.dcellar-web-ui.fe.nodereal.cc" >> $GITHUB_OUTPUT
       - name: Create Version Comment
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
           comment-id: ${{ github.event.comment.id }}
@@ -156,7 +156,7 @@ jobs:
     needs: [CI-CD]
     steps:
       - name: Create Job Failure Feedback
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ github.event.comment.id }}
           issue-number: ${{ github.event.issue.number }}
