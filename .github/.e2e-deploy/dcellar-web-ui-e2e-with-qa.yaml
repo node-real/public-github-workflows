@@ -34,7 +34,7 @@ nodereal-app:
       - name: NEXT_PUBLIC_BSC_RPC_URL
         value: 'https://data-seed-prebsc-1-s1.binance.org:8545'
       - name: NEXT_PUBLIC_GREENFIELD_CHAIN_RPC_URL
-        value: 'https://gnfd.qa.bnbchain.world'
+        value: 'https://gnfd-stagenet-fullnode-tendermint-us.bk.nodereal.cc'
       - name: NEXT_PUBLIC_GREENFIELD_CHAIN_EXPLORER_URL
         value: 'https://greenfieldscan-qanet.fe.nodereal.cc'
       - name: NEXT_PUBLIC_BSC_EXPLORER_URL
