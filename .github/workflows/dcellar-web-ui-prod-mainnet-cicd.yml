@@ -200,7 +200,7 @@ jobs:
         run: |
           echo "build_id=${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
       - name: Create Pull Request for Image Update
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GO_MODULES_TOKEN }}
           commit-message: Update Image Tag
