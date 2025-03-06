@@ -20,7 +20,7 @@ on:
 
 jobs:
   CI-CD:
-    runs-on: [qa-cicd-runners-large]
+    runs-on: [ubuntu-latest]
     steps:
       - name: Get current date
         id: start

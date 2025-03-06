@@ -31,7 +31,7 @@ on:
 
 jobs:
   CI:
-    runs-on: [prod-cicd-runners]
+    runs-on: [ubuntu-latest]
     steps:
       - name: Checkout 🛎️
         uses: actions/checkout@v4
@@ -81,13 +81,6 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f apps/${APP_NAME}/Dockerfile . -t ${IMAGE_NAME}
           docker push ${IMAGE_NAME}
           echo "image_id=$IMAGE_NAME" >> $GITHUB_OUTPUT
-      - name: Upload Static Files to Prod S3 Bucket
-        env:
-          APP_NAME: ${{ inputs.app_name }}
-          STATIC_BUCKET: ${{ secrets.PROD_S3_BUCKET }}
-        run: |
-          aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000"
-          aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000"
       - name: Checkout GitOps Repository for Diff Commits 🛎️
         uses: actions/checkout@v4
         with:
