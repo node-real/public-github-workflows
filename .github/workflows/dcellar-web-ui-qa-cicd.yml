@@ -115,7 +115,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: apps/${APP_NAME}/Dockerfile
+          file: apps/${{ inputs.app_name}}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
