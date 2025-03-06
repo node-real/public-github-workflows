@@ -69,81 +69,90 @@ jobs:
       - name: Deploy Rush Project
         run: |
           node common/scripts/install-run-rush.js deploy -p ${{ inputs.app_name }}
-      - name: Build and Push Docker Image to ECR
-        id: image
-        env:
-          REGION: ${{ secrets.REGION }}
-          ECR_REGISTRY_ID: ${{ secrets.ECR_REGISTRY_ID }}
-          APP_NAME: ${{ inputs.app_name }}
-          REPO_IMAGE_NAME: ${{ inputs.app_name }}-${{ inputs.env }}
-        run: |
-          IMAGE_NAME="${ECR_REGISTRY_ID}.dkr.ecr.${REGION}.amazonaws.com/${REPO_IMAGE_NAME}:${{ steps.commit_sha.outputs.COMMIT_SHA }}"
-          aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY_ID}.dkr.ecr.${REGION}.amazonaws.com
-
-          DOCKER_BUILDKIT=1 docker build -f apps/${APP_NAME}/Dockerfile . -t ${IMAGE_NAME}
-
-          docker push ${IMAGE_NAME}
-
-          echo "image_id=$IMAGE_NAME" >> $GITHUB_OUTPUT
-      - name: Upload Static Files to Prod S3 Bucket
-        env:
-          APP_NAME: ${{ inputs.app_name }}
-          STATIC_BUCKET: ${{ secrets.PROD_MAINNET_S3_BUCKET }}
-        run: |
-          aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000"
-          aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000"
-      - name: Checkout GitOps Config Repository to get diff commit 🛎️
-        uses: actions/checkout@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v2
         with:
-          repository: node-real/nodereal-app
-          token: ${{ secrets.GO_MODULES_TOKEN }}
-          path: nodereal-app
-      - name: Retrieve Online Version Commit ID
-        id: get_online_commit_id
-        run: |
-          COMMIT_ID=$(yq eval "${{ inputs.tag_field }}" "nodereal-app/${{ inputs.git_sync_path }}")
-          echo "commit_id=${COMMIT_ID}" >> $GITHUB_OUTPUT
-      - name: Checkout 🛎️
-        uses: actions/checkout@v4
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: image meta
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          ref: ${{ inputs.ref }}
-          fetch-depth: 0
-      - name: Retrieve Release Diff Commits
-        id: get_diff_commits
-        continue-on-error: true
-        run: |
-          CURRENT_HASH=${{ steps.commit_sha.outputs.COMMIT_SHA }}
-          LAST_BUILD_HASH=${{steps.get_online_commit_id.outputs.commit_id}}
-          DIFF=""
-          if [ -z "$LAST_BUILD_HASH" ]
-          then
-                echo "Unable to find last commit by bot, skipping diff gen"
-          else
-                DIFF=$(git log ${LAST_BUILD_HASH}...${CURRENT_HASH} --pretty=format:%s )
-                echo $DIFF
-          fi
-          echo 'DIFF<<EOF' >> $GITHUB_ENV
-          echo "${DIFF}" >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
-      - name: Checkout Public Github workflows 🛎️
-        uses: actions/checkout@v4
+          images: |
+            ghcr.io/${{ github.repository_owner }}/${{ inputs.app_name}}-${{ inputs.env }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha
+      - name: Build and push
+        uses: docker/build-push-action@v4
         with:
-          repository: 'node-real/public-github-workflows'
-          token: ${{ secrets.GO_MODULES_TOKEN }}
-      - name: Prune Commit Messages
-        id: prune_commit_msg
-        continue-on-error: true
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const diff_commits = `${{env.DIFF}}`
-            const script = require("${{ github.workspace }}/.github/utils/parse-diff-commits.js");
-            await script({diff_commits, core});
-      - name: Checkout 🛎️
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref }}
-          fetch-depth: 0
+          context: .
+          file: apps/${{ inputs.app_name}}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      # - name: Upload Static Files to Prod S3 Bucket
+      #   env:
+      #     APP_NAME: ${{ inputs.app_name }}
+      #     STATIC_BUCKET: ${{ secrets.PROD_MAINNET_S3_BUCKET }}
+      #   run: |
+      #     aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000"
+      #     aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000"
+      # - name: Checkout GitOps Config Repository to get diff commit 🛎️
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: node-real/nodereal-app
+      #     token: ${{ secrets.GO_MODULES_TOKEN }}
+      #     path: nodereal-app
+      # - name: Retrieve Online Version Commit ID
+      #   id: get_online_commit_id
+      #   run: |
+      #     COMMIT_ID=$(yq eval "${{ inputs.tag_field }}" "nodereal-app/${{ inputs.git_sync_path }}")
+      #     echo "commit_id=${COMMIT_ID}" >> $GITHUB_OUTPUT
+      # - name: Checkout 🛎️
+      #   uses: actions/checkout@v4
+      #   with:
+      #     ref: ${{ inputs.ref }}
+      #     fetch-depth: 0
+      # - name: Retrieve Release Diff Commits
+      #   id: get_diff_commits
+      #   continue-on-error: true
+      #   run: |
+      #     CURRENT_HASH=${{ steps.commit_sha.outputs.COMMIT_SHA }}
+      #     LAST_BUILD_HASH=${{steps.get_online_commit_id.outputs.commit_id}}
+      #     DIFF=""
+      #     if [ -z "$LAST_BUILD_HASH" ]
+      #     then
+      #           echo "Unable to find last commit by bot, skipping diff gen"
+      #     else
+      #           DIFF=$(git log ${LAST_BUILD_HASH}...${CURRENT_HASH} --pretty=format:%s )
+      #           echo $DIFF
+      #     fi
+      #     echo 'DIFF<<EOF' >> $GITHUB_ENV
+      #     echo "${DIFF}" >> $GITHUB_ENV
+      #     echo 'EOF' >> $GITHUB_ENV
+      # - name: Checkout Public Github workflows 🛎️
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: 'node-real/public-github-workflows'
+      #     token: ${{ secrets.GO_MODULES_TOKEN }}
+      # - name: Prune Commit Messages
+      #   id: prune_commit_msg
+      #   continue-on-error: true
+      #   uses: actions/github-script@v7
+      #   with:
+      #     script: |
+      #       const diff_commits = `${{env.DIFF}}`
+      #       const script = require("${{ github.workspace }}/.github/utils/parse-diff-commits.js");
+      #       await script({diff_commits, core});
+      # - name: Checkout 🛎️
+      #   uses: actions/checkout@v4
+      #   with:
+      #     ref: ${{ inputs.ref }}
+      #     fetch-depth: 0
       - name: Generate Artifacts
         run: |
           mkdir temp
@@ -156,60 +165,60 @@ jobs:
           path: temp
           if-no-files-found: error
 
-  CD:
-    runs-on: [prod-cicd-runners]
-    needs: [CI]
-    steps:
-      - name: Checkout GitOps Config Repository 🛎️
-        uses: actions/checkout@v4
-        with:
-          repository: node-real/nodereal-app
-          token: ${{ secrets.GO_MODULES_TOKEN }}
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: "${{ github.event.issue.number }}_prod_mainnet_artifacts"
-          path: ./artifacts
-      - name: Output Commit Changes
-        id: output_commits_changes
-        run: |
-          DIFF=$(cat artifacts/prod_mainnet_commit_changes)
-          echo 'DIFF<<EOF' >> $GITHUB_ENV
-          echo "${DIFF}" >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
-      - name: Output Commit SHA
-        id: output_commit_sha
-        run: |
-          COMMIT_SHA=$(cat artifacts/prod_mainnet_commit_sha)
-          echo "commit_sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
-      - name: Clear Artifacts
-        uses: geekyeggo/delete-artifact@v5
-        with:
-          name: "${{ github.event.issue.number }}_prod_mainnet_artifacts"
-      - name: Clean Local Artifacts
-        run: |
-          rm -rf artifacts
-      - name: update image tag in gitops config repo
-        run: |
-          yq e "${{ inputs.tag_field }} = \"${{ steps.output_commit_sha.outputs.commit_sha }}\"" -i "${{ inputs.git_sync_path}}"
-      - name: Set Pull Request Branch Name
-        id: vars
-        run: echo "branch-name=github-action-patches/${{ inputs.app_name }}-${{ inputs.env }}/${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
-      - name: Echo build id
-        id: echo_build
-        run: |
-          echo "build_id=${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
-      - name: Create Pull Request for Image Update
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GO_MODULES_TOKEN }}
-          commit-message: Update Image Tag
-          title: "[web-ui:${{ inputs.app_name }}-${{ inputs.env }}] bot auto-PR by submitted ${{ github.triggering_actor || github.event.issue.user.login }}"
-          body: |
-            ${{ env.DIFF }}
-            ## Other Info
-            - Original Code Changes: ${{ github.event.issue.html_url || github.event.pull_request._links.html.href || 'main' }}
-            - Build Id: ${{ steps.output_commit_sha.outputs.commit_sha }}
-          branch: ${{ steps.vars.outputs.branch-name }}
-          labels: |
-            prod
+  # CD:
+  #   runs-on: [prod-cicd-runners]
+  #   needs: [CI]
+  #   steps:
+  #     - name: Checkout GitOps Config Repository 🛎️
+  #       uses: actions/checkout@v4
+  #       with:
+  #         repository: node-real/nodereal-app
+  #         token: ${{ secrets.GO_MODULES_TOKEN }}
+  #     - name: Download Artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: "${{ github.event.issue.number }}_prod_mainnet_artifacts"
+  #         path: ./artifacts
+  #     - name: Output Commit Changes
+  #       id: output_commits_changes
+  #       run: |
+  #         DIFF=$(cat artifacts/prod_mainnet_commit_changes)
+  #         echo 'DIFF<<EOF' >> $GITHUB_ENV
+  #         echo "${DIFF}" >> $GITHUB_ENV
+  #         echo 'EOF' >> $GITHUB_ENV
+  #     - name: Output Commit SHA
+  #       id: output_commit_sha
+  #       run: |
+  #         COMMIT_SHA=$(cat artifacts/prod_mainnet_commit_sha)
+  #         echo "commit_sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+  #     - name: Clear Artifacts
+  #       uses: geekyeggo/delete-artifact@v5
+  #       with:
+  #         name: "${{ github.event.issue.number }}_prod_mainnet_artifacts"
+  #     - name: Clean Local Artifacts
+  #       run: |
+  #         rm -rf artifacts
+  #     - name: update image tag in gitops config repo
+  #       run: |
+  #         yq e "${{ inputs.tag_field }} = \"${{ steps.output_commit_sha.outputs.commit_sha }}\"" -i "${{ inputs.git_sync_path}}"
+  #     - name: Set Pull Request Branch Name
+  #       id: vars
+  #       run: echo "branch-name=github-action-patches/${{ inputs.app_name }}-${{ inputs.env }}/${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
+  #     - name: Echo build id
+  #       id: echo_build
+  #       run: |
+  #         echo "build_id=${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
+  #     - name: Create Pull Request for Image Update
+  #       uses: peter-evans/create-pull-request@v6
+  #       with:
+  #         token: ${{ secrets.GO_MODULES_TOKEN }}
+  #         commit-message: Update Image Tag
+  #         title: "[web-ui:${{ inputs.app_name }}-${{ inputs.env }}] bot auto-PR by submitted ${{ github.triggering_actor || github.event.issue.user.login }}"
+  #         body: |
+  #           ${{ env.DIFF }}
+  #           ## Other Info
+  #           - Original Code Changes: ${{ github.event.issue.html_url || github.event.pull_request._links.html.href || 'main' }}
+  #           - Build Id: ${{ steps.output_commit_sha.outputs.commit_sha }}
+  #         branch: ${{ steps.vars.outputs.branch-name }}
+  #         labels: |
+  #           prod
