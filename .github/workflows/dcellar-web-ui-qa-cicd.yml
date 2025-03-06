@@ -197,84 +197,84 @@ jobs:
               repo: context.repo.repo,
               labels: ["${{ inputs.app_name}}"]
             })
-  CD:
-    runs-on: [qa-cicd-runners-large]
-    needs: [CI]
-    steps:
-      - name: Checkout GitOps Config Repository 🛎️
-        uses: actions/checkout@v4
-        with:
-          repository: node-real/nodereal-app
-          token: ${{ secrets.GO_MODULES_TOKEN }}
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
-          path: ./artifacts
-      - name: Output Commit Changes
-        id: output_commits_changes
-        run: |
-          DIFF=$(cat artifacts/commit_changes)
-          echo 'DIFF<<EOF' >> $GITHUB_ENV
-          echo "${DIFF}" >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
-      - name: Output Commit SHA
-        id: output_commit_sha
-        run: |
-          COMMIT_SHA=$(cat artifacts/commit_sha)
-          echo "commit_sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
-      - name: Clear Artifacts
-        uses: geekyeggo/delete-artifact@v5
-        with:
-          name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
-      - name: Clean Local Artifacts
-        run: |
-          rm -rf artifacts
-      - name: Update Image Tag in GitOps Config
-        run: |
-          yq e "${{ inputs.tag_field }} = \"${{ steps.output_commit_sha.outputs.commit_sha }}\"" -i "${{ inputs.git_sync_path }}"
-      - name: Set Pull Request Branch Name
-        id: vars
-        run: |
-          echo "branch-name=github-action-patches/${{ inputs.app_name}}/${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
-      - name: Create Pull Request for Image Update
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GO_MODULES_TOKEN }}
-          commit-message: Update Image Tag
-          title: "[web-ui:${{ inputs.app_name}}] bot auto-PR by submitted ${{ github.triggering_actor || github.event.issue.user.login }}"
-          body: |
-            ${{ env.DIFF }}
-            ## Other Info
-            - Original Code Changes: ${{ github.event.issue.html_url || github.event.pull_request._links.html.href || 'master' }}
-            - Build Id: ${{ steps.output_commit_sha.outputs.commit_sha }}
-          branch: ${{ steps.vars.outputs.branch-name }}
-          labels: |
-            qa
-      - name: Create Version Comment
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: ${{ github.event.issue.number }}
-          comment-id: ${{ github.event.comment.id }}
-          body: |
-            ++++++
-            Congrats, qa-deploy successfully!
-            Preview Url: ${{ inputs.preview_url }}
-            Build Id: ${{ steps.output_commit_sha.outputs.commit_sha }}
-          reactions: hooray, rocket
-  Job-Failure-Feedback:
-    runs-on: [qa-cicd-runners]
-    if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
-    needs: [CI, CD]
-    steps:
-      - name: Create Job Failure Feedback
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          comment-id: ${{ github.event.comment.id }}
-          issue-number: ${{ github.event.issue.number }}
-          body: |
-            ++++++
-            Sorry, this runner occurs some unexpected errors, please see [the link](https://github.com/node-real/dcellar-fe/actions/runs/${{github.run_id}}) for more detail.
-          reactions: confused
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+  # CD:
+  #   runs-on: [qa-cicd-runners-large]
+  #   needs: [CI]
+  #   steps:
+  #     - name: Checkout GitOps Config Repository 🛎️
+  #       uses: actions/checkout@v4
+  #       with:
+  #         repository: node-real/nodereal-app
+  #         token: ${{ secrets.GO_MODULES_TOKEN }}
+  #     - name: Download Artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
+  #         path: ./artifacts
+  #     - name: Output Commit Changes
+  #       id: output_commits_changes
+  #       run: |
+  #         DIFF=$(cat artifacts/commit_changes)
+  #         echo 'DIFF<<EOF' >> $GITHUB_ENV
+  #         echo "${DIFF}" >> $GITHUB_ENV
+  #         echo 'EOF' >> $GITHUB_ENV
+  #     - name: Output Commit SHA
+  #       id: output_commit_sha
+  #       run: |
+  #         COMMIT_SHA=$(cat artifacts/commit_sha)
+  #         echo "commit_sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+  #     - name: Clear Artifacts
+  #       uses: geekyeggo/delete-artifact@v5
+  #       with:
+  #         name: "${{ inputs.app_name}}_${{ github.event.issue.number }}_qa_artifacts"
+  #     - name: Clean Local Artifacts
+  #       run: |
+  #         rm -rf artifacts
+  #     - name: Update Image Tag in GitOps Config
+  #       run: |
+  #         yq e "${{ inputs.tag_field }} = \"${{ steps.output_commit_sha.outputs.commit_sha }}\"" -i "${{ inputs.git_sync_path }}"
+  #     - name: Set Pull Request Branch Name
+  #       id: vars
+  #       run: |
+  #         echo "branch-name=github-action-patches/${{ inputs.app_name}}/${{ steps.output_commit_sha.outputs.commit_sha }}" >> $GITHUB_OUTPUT
+  #     - name: Create Pull Request for Image Update
+  #       uses: peter-evans/create-pull-request@v6
+  #       with:
+  #         token: ${{ secrets.GO_MODULES_TOKEN }}
+  #         commit-message: Update Image Tag
+  #         title: "[web-ui:${{ inputs.app_name}}] bot auto-PR by submitted ${{ github.triggering_actor || github.event.issue.user.login }}"
+  #         body: |
+  #           ${{ env.DIFF }}
+  #           ## Other Info
+  #           - Original Code Changes: ${{ github.event.issue.html_url || github.event.pull_request._links.html.href || 'master' }}
+  #           - Build Id: ${{ steps.output_commit_sha.outputs.commit_sha }}
+  #         branch: ${{ steps.vars.outputs.branch-name }}
+  #         labels: |
+  #           qa
+  #     - name: Create Version Comment
+  #       uses: peter-evans/create-or-update-comment@v4
+  #       with:
+  #         issue-number: ${{ github.event.issue.number }}
+  #         comment-id: ${{ github.event.comment.id }}
+  #         body: |
+  #           ++++++
+  #           Congrats, qa-deploy successfully!
+  #           Preview Url: ${{ inputs.preview_url }}
+  #           Build Id: ${{ steps.output_commit_sha.outputs.commit_sha }}
+  #         reactions: hooray, rocket
+  # Job-Failure-Feedback:
+  #   runs-on: [qa-cicd-runners]
+  #   if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
+  #   needs: [CI, CD]
+  #   steps:
+  #     - name: Create Job Failure Feedback
+  #       uses: peter-evans/create-or-update-comment@v4
+  #       with:
+  #         comment-id: ${{ github.event.comment.id }}
+  #         issue-number: ${{ github.event.issue.number }}
+  #         body: |
+  #           ++++++
+  #           Sorry, this runner occurs some unexpected errors, please see [the link](https://github.com/node-real/dcellar-fe/actions/runs/${{github.run_id}}) for more detail.
+  #         reactions: confused
+  #       env:
+  #         GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
