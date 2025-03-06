@@ -119,13 +119,14 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-      - name: Upload Static Files to QA S3 Bucket
-        env:
-          APP_NAME: ${{ inputs.app_name }}
-          STATIC_BUCKET: ${{ secrets.QA_S3_BUCKET }}
-        run: |
-          aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000" --metadata '{"Cache-Control":"max-age=31536000"}'
-          aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000" --metadata '{"Cache-Control":"max-age=31536000"}'
+      # Remove this step, as public runners are used. 
+      # - name: Upload Static Files to QA S3 Bucket
+      #   env:
+      #     APP_NAME: ${{ inputs.app_name }}
+      #     STATIC_BUCKET: ${{ secrets.QA_S3_BUCKET }}
+      #   run: |
+      #     aws s3 cp apps/${APP_NAME}/.next/static s3://${STATIC_BUCKET}/static/${APP_NAME}/_next/static --recursive --cache-control "public, max-age=31536000" --metadata '{"Cache-Control":"max-age=31536000"}'
+      #     aws s3 cp apps/${APP_NAME}/public s3://${STATIC_BUCKET}/static/${APP_NAME} --recursive --cache-control "public, max-age=31536000" --metadata '{"Cache-Control":"max-age=31536000"}'
       - name: Checkout GitOps Repository for Diff Commits 🛎️
         uses: actions/checkout@v4
         with:
