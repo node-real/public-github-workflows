@@ -21,8 +21,6 @@ nodereal-app:
   configMapsMountPath: /app/conf/
   containers:
     env:
-      - name: NEXT_PUBLIC_STATIC_HOST
-        value: ''
       - name: NEXT_PUBLIC_ENV
         value: 'mainnet'
       - name: NEXT_PUBLIC_GOOGLE_ANALYTICS_ID
