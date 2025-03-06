@@ -31,7 +31,7 @@ on:
 
 jobs:
   CI:
-    runs-on: [prod-cicd-runners]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout 🛎️
         uses: actions/checkout@v4
